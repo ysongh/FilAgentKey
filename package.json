@@ -1,0 +1,17 @@
+{
+  "name": "filagentkey",
+  "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bufferutil",
+      "esbuild",
+      "keccak",
+      "utf-8-validate"
+    ]
+  },
+  "scripts": {
+    "dev": "pnpm --filter filagentkey-dashboard dev",
+    "build": "pnpm --filter filagentkey-dashboard build",
+    "typecheck": "pnpm -r typecheck"
+  }
+}

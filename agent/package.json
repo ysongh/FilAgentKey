@@ -1,0 +1,20 @@
+{
+  "name": "filagentkey-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "owner:create": "tsx --env-file-if-exists=.env owner.mts",
+    "agent": "tsx --env-file-if-exists=.env agent.mts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@filoz/synapse-core": "^0.7.0",
+    "@filoz/synapse-sdk": "^1.1.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
