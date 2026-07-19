@@ -1,10 +1,102 @@
-export default function App() {
+import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { KeyCard } from './components/KeyCard'
+import { useSessionKeys } from './hooks/useSessionKeys'
+
+function ConnectScreen() {
+  const { connect, connectors, isPending, error } = useConnect()
+  const injectedConnector = connectors[0]
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col items-center justify-center gap-4">
-      <h1 className="text-3xl font-bold tracking-tight">FilAgentKey</h1>
-      <p className="text-zinc-400">
-        Valet keys for AI agents on Filecoin — dashboard scaffold (Stage 0)
+    <div className="flex flex-col items-center gap-4 py-24 text-center">
+      <p className="text-zinc-400 max-w-md">
+        Mint scoped, time-limited, on-chain-revocable session keys for your AI
+        agents. Connect your Calibration wallet to see your keys.
       </p>
+      <button
+        type="button"
+        disabled={injectedConnector === undefined || isPending}
+        onClick={() =>
+          injectedConnector !== undefined &&
+          connect({ connector: injectedConnector })
+        }
+        className="rounded-md bg-sky-500 px-4 py-2 text-sm font-medium text-white hover:bg-sky-400 disabled:opacity-50"
+      >
+        {isPending ? 'Connecting…' : 'Connect wallet'}
+      </button>
+      {injectedConnector === undefined && (
+        <p className="text-sm text-zinc-500">
+          No injected wallet found — install MetaMask (or similar) and reload.
+        </p>
+      )}
+      {error !== null && (
+        <p className="text-sm text-red-400">{error.message}</p>
+      )}
+    </div>
+  )
+}
+
+function KeyList() {
+  const { data, isPending, error } = useSessionKeys()
+
+  if (isPending) {
+    return <p className="text-zinc-500 py-12 text-center">Loading session keys…</p>
+  }
+  if (error !== null) {
+    return (
+      <p className="text-red-400 py-12 text-center text-sm">
+        Failed to read the registry: {error.message}
+      </p>
+    )
+  }
+  if (data.length === 0) {
+    return (
+      <p className="text-zinc-500 py-12 text-center">
+        No session keys in the last ~24 h. Create one to get started.
+      </p>
+    )
+  }
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {data.map((info) => (
+        <KeyCard key={info.signer} info={info} />
+      ))}
+    </div>
+  )
+}
+
+export default function App() {
+  const { address, isConnected } = useAccount()
+  const { disconnect } = useDisconnect()
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <header className="border-b border-zinc-800">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight">FilAgentKey</h1>
+            <p className="text-xs text-zinc-500">
+              valet keys for AI agents on Filecoin · Calibration
+            </p>
+          </div>
+          {isConnected && address !== undefined && (
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs text-zinc-400" title={address}>
+                {address.slice(0, 6)}…{address.slice(-4)}
+              </span>
+              <button
+                type="button"
+                onClick={() => disconnect()}
+                className="text-xs text-zinc-500 hover:text-zinc-300"
+              >
+                disconnect
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+      <main className="mx-auto max-w-3xl px-4 py-8">
+        {isConnected ? <KeyList /> : <ConnectScreen />}
+      </main>
     </div>
   )
 }

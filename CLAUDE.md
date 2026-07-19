@@ -100,12 +100,24 @@ const synapse = new Synapse({
 const result = await synapse.storage.upload(bytes)  // result.pieceCid
 ```
 
-Activity feed: registry ABI/address from `@filoz/synapse-core/abis`
-(`sessionKeyRegistryAbi` / `sessionKeyRegistryAddress` — confirm exact export
-names against the `.d.ts`). Query `AuthorizationsUpdated` logs with viem
-`getLogs`, filtered by indexed `identity` = connected address. Fields:
-`identity`, `signer`, `expiry`, `permissions[]`, `origin`. `expiry = 0n`
-across permissions ⇒ revoked.
+More verified surface (confirmed against installed `.d.ts` / source):
+
+- Registry address + ABI: use `calibration.contracts.sessionKeyRegistry`
+  (`.address` / `.abi`) — no separate abis import needed. (The abis-module
+  export is named `sessionKeyRegistry`, not `sessionKeyRegistryAbi`.)
+- `PermissionNames` (session-key module): `Record<Hex, string>` for
+  human-readable permission labels.
+- `loginSync` / `revokeSync`: wait-for-receipt variants, useful for the
+  dashboard's post-tx status flips.
+- `Synapse.create` is synchronous; `storage.upload()` returns `UploadResult`
+  with `pieceCid` field. Minimum payload 65 bytes.
+
+Activity feed: query `AuthorizationsUpdated` logs with viem `getLogs`,
+filtered by indexed `identity` = connected address. Fields: `identity`,
+`signer`, `expiry`, `permissions[]`, `origin`. `expiry = 0n` across
+permissions ⇒ revoked. **Calibration RPC caps `eth_getLogs` ranges at 2880
+epochs (~24 h)** — the dashboard queries the last ~2870 blocks
+(`dashboard/src/lib/registry.ts`); documented limitation, no workaround.
 
 Registry also has payable `loginAndFund(signer, expiry, permissions, origin)`
 (authorize + gas-fund in one tx) — prefer it if simulation succeeds; else fall
@@ -130,10 +142,27 @@ PieceCID) · 1 dashboard read layer · 2 dashboard writes (create/reveal/revoke)
 loop, `--plain` flag for bare loop) · 5 README + 90s demo script (⛔ human
 checkpoint).
 
+**Status: stages 0–1 complete and human-verified** (delegated upload returned
+PieceCIDs on Calibration; dashboard lists keys from chain state). See
+`specs/stage-0.md` for API deviations discovered from source.
+
 Note: the spike grants CreateDataSet + AddPieces; the first successful run
-creates the root's dataset, after which demo keys can be AddPieces-only.
-Faucet funding, USDFC deposit, and warm-storage operator approval are
-human-side operations.
+creates the root's dataset — done 2026-07-18 for root `0x131c…0Dba`, so demo
+keys can now be AddPieces-only. Faucet funding, USDFC deposit, and
+warm-storage operator approval are human-side operations (done for that
+root).
+
+Field notes from the live runs:
+
+- Agent scripts auto-load `agent/.env` (`tsx --env-file-if-exists=.env`);
+  `agent/.env.example` is the tracked template. `agent/check-status.mts` is a
+  read-only probe: balances + live authorization state for the key in `.env`.
+- Calibration uploads take ~2 min each (piece confirmation); SPs
+  intermittently fail pings or time out on-chain commits. The demo script
+  must tolerate a failed iteration.
+- Wallet reads work regardless of MetaMask's selected network (dashboard uses
+  its own transport); writes (Stage 2+) need MetaMask on Calibration — prompt
+  chain add/switch from the dashboard.
 
 ## Acceptance = the demo beats
 
