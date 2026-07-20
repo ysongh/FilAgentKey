@@ -103,6 +103,20 @@ export async function fetchSessionKeys(
   )
 }
 
+/** Filecoin epochs are a fixed 30 s, so block → wall time needs no getBlock. */
+const EPOCH_SECONDS = 30
+
+export function eventTimestamp(blockNumber: bigint): number {
+  return calibration.genesisTimestamp + Number(blockNumber) * EPOCH_SECONDS
+}
+
+export function txExplorerUrl(txHash: Hex): string {
+  const base =
+    calibration.blockExplorers?.default.url ??
+    'https://filecoin-testnet.blockscout.com'
+  return `${base}/tx/${txHash}`
+}
+
 export type KeyStatus = 'active' | 'expiring' | 'expired' | 'revoked'
 
 export function keyStatus(key: SessionKeyInfo, nowSeconds: number): KeyStatus {

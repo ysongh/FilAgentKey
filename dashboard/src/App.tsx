@@ -1,4 +1,5 @@
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { ActivityFeed } from './components/ActivityFeed'
 import { CreateKey } from './components/CreateKey'
 import { KeyCard } from './components/KeyCard'
 import { useSessionKeys } from './hooks/useSessionKeys'
@@ -95,16 +96,23 @@ export default function App() {
           )}
         </div>
       </header>
-      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
+      <main className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
         {isConnected ? (
           <>
             <CreateKey />
             <KeyList />
+            <ActivityFeed />
           </>
         ) : (
           <ConnectScreen />
         )}
       </main>
+      <footer className="mx-auto max-w-3xl px-4 pb-8">
+        <p className="text-center text-xs text-zinc-700">
+          Calibration testnet · no backend — chain state is the only source of
+          truth · root keys never leave your wallet
+        </p>
+      </footer>
     </div>
   )
 }

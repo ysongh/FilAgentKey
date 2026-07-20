@@ -142,11 +142,13 @@ PieceCID) · 1 dashboard read layer · 2 dashboard writes (create/reveal/revoke)
 loop, `--plain` flag for bare loop) · 5 README + 90s demo script (⛔ human
 checkpoint).
 
-**Status: stages 0–1 complete and human-verified** (delegated upload returned
-PieceCIDs on Calibration; dashboard lists keys from chain state). **Stage 2
-implemented and built; manual browser test pending** (create → reveal-once →
-revoke → live agent lockout). See `specs/stage-0.md` for API deviations
-discovered from source.
+**Status: stages 0–2 complete and human-verified; stage 3 implemented and
+built, visual check pending.** All five demo beats have run live on
+Calibration: dashboard create (one `loginAndFund` tx) → reveal-once → scoped
+agent (AddPieces ✓ / CreateDataSet ✗) uploads with PieceCIDs → Revoke click →
+agent locked out mid-upload within the poll window. Natural-expiry lockout
+also proven. See `specs/stage-0.md` for API deviations discovered from
+source.
 
 Note: the spike grants CreateDataSet + AddPieces; the first successful run
 creates the root's dataset — done 2026-07-18 for root `0x131c…0Dba`, so demo
@@ -176,6 +178,15 @@ Field notes from the live runs:
 - wagmi gotcha: `useChainId()` returns the app config's chain, not the
   wallet's — read the wallet's live chain from `useAccount().chainId`
   (`dashboard/src/hooks/useEnsureChain.ts`).
+- Block → wall time needs no `getBlock`: Filecoin epochs are a fixed 30 s and
+  the chain object carries `calibration.genesisTimestamp` (1667326380), so
+  `timestamp = genesisTimestamp + blockNumber * 30` (validated against a
+  known event; `dashboard/src/lib/registry.ts`).
+- `calibration.blockExplorers.default` is Blockscout
+  (`https://filecoin-testnet.blockscout.com`, `/tx/<hash>` paths); Filfox /
+  Beryx / Glif exist as named entries.
+- The activity feed reuses the key-list query's events (React Query dedupes)
+  — keep it at exactly one `eth_getLogs` per refresh.
 
 ## Acceptance = the demo beats
 

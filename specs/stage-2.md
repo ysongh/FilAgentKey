@@ -41,11 +41,13 @@ MetaMask signs everything.
 
 ## Acceptance checks
 
-- [ ] `tsc --noEmit` and `pnpm --filter filagentkey-dashboard build` pass.
-- [ ] Still no `@filoz/synapse-sdk` in the dashboard dependency tree.
-- [ ] Manual (demo beats 1 + 4-ish): create AddPieces-only 15-min key →
-      MetaMask prompts (chain switch if needed, then one tx if `loginAndFund`
-      simulates, else two) → reveal screen shows env block once → new card
-      appears active with countdown. Paste env into `agent/.env`, run
-      `pnpm agent`, click **Revoke** → agent prints the lockout line within
-      seconds and exits.
+- [x] `tsc --noEmit` and `pnpm --filter filagentkey-dashboard build` pass.
+- [x] Still no `@filoz/synapse-sdk` in the dashboard dependency tree.
+- [x] Manual test passed 2026-07-19 — all five demo beats exercised live:
+      dashboard minted `0x99F5…436a` (AddPieces-only, 15 min, one
+      `loginAndFund` tx), reveal-once worked, agent printed AddPieces ✓ /
+      CreateDataSet ✗ and uploaded (PieceCID returned), **Revoke click killed
+      the agent mid-upload** (`🔒 SESSION KEY REVOKED ON-CHAIN`), and
+      `check-status` confirms all permissions zeroed on-chain (revoked, not
+      expired). Bonus from an earlier round: natural expiry lockout also
+      proven (`🔒 SESSION KEY EXPIRED`, key `0xD97F…0203`).
