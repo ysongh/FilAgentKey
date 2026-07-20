@@ -1,4 +1,5 @@
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { CreateKey } from './components/CreateKey'
 import { KeyCard } from './components/KeyCard'
 import { useSessionKeys } from './hooks/useSessionKeys'
 
@@ -94,8 +95,15 @@ export default function App() {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        {isConnected ? <KeyList /> : <ConnectScreen />}
+      <main className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-8">
+        {isConnected ? (
+          <>
+            <CreateKey />
+            <KeyList />
+          </>
+        ) : (
+          <ConnectScreen />
+        )}
       </main>
     </div>
   )

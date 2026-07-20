@@ -1,7 +1,12 @@
 import { PermissionNames } from '@filoz/synapse-core/session-key'
+import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import type { Hex } from 'viem'
+import { useWalletClient } from 'wagmi'
+import { useEnsureChain } from '../hooks/useEnsureChain'
 import { useNow } from '../hooks/useNow'
 import { keyStatus, type KeyStatus, type SessionKeyInfo } from '../lib/registry'
+import { revokeAgentKey } from '../lib/write'
 
 const statusStyles: Record<KeyStatus, { label: string; className: string }> = {
   active: { label: 'active', className: 'bg-emerald-500/15 text-emerald-400' },
@@ -28,6 +33,26 @@ export function KeyCard({ info }: { info: SessionKeyInfo }) {
   const now = useNow()
   const status = keyStatus(info, now)
   const badge = statusStyles[status]
+  const { data: walletClient } = useWalletClient()
+  const ensureChain = useEnsureChain()
+  const queryClient = useQueryClient()
+  const [revoking, setRevoking] = useState(false)
+  const [revokeError, setRevokeError] = useState<string | null>(null)
+
+  const revoke = async () => {
+    if (walletClient === undefined) return
+    setRevokeError(null)
+    setRevoking(true)
+    try {
+      await ensureChain()
+      await revokeAgentKey(walletClient, info.signer)
+      await queryClient.invalidateQueries({ queryKey: ['sessionKeys'] })
+    } catch (cause) {
+      setRevokeError(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      setRevoking(false)
+    }
+  }
 
   return (
     <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 flex flex-col gap-3">
@@ -85,6 +110,20 @@ export function KeyCard({ info }: { info: SessionKeyInfo }) {
           )
         })}
       </ul>
+
+      {(status === 'active' || status === 'expiring') && (
+        <button
+          type="button"
+          onClick={() => void revoke()}
+          disabled={revoking || walletClient === undefined}
+          className="self-start rounded-md border border-red-500/40 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+        >
+          {revoking ? 'Revoking…' : 'Revoke'}
+        </button>
+      )}
+      {revokeError !== null && (
+        <p className="break-all text-xs text-red-400">{revokeError}</p>
+      )}
     </div>
   )
 }

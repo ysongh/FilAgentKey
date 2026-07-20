@@ -143,8 +143,10 @@ loop, `--plain` flag for bare loop) · 5 README + 90s demo script (⛔ human
 checkpoint).
 
 **Status: stages 0–1 complete and human-verified** (delegated upload returned
-PieceCIDs on Calibration; dashboard lists keys from chain state). See
-`specs/stage-0.md` for API deviations discovered from source.
+PieceCIDs on Calibration; dashboard lists keys from chain state). **Stage 2
+implemented and built; manual browser test pending** (create → reveal-once →
+revoke → live agent lockout). See `specs/stage-0.md` for API deviations
+discovered from source.
 
 Note: the spike grants CreateDataSet + AddPieces; the first successful run
 creates the root's dataset — done 2026-07-18 for root `0x131c…0Dba`, so demo
@@ -163,6 +165,17 @@ Field notes from the live runs:
 - Wallet reads work regardless of MetaMask's selected network (dashboard uses
   its own transport); writes (Stage 2+) need MetaMask on Calibration — prompt
   chain add/switch from the dashboard.
+- `loginAndFund` **simulates OK against the deployed Calibration registry**
+  (verified from the funded root via `eth_call`), so the dashboard's create
+  flow is one tx; the `login` + 0.3 tFIL transfer fallback stays in
+  `dashboard/src/lib/write.ts`.
+- `revoke()` source facts: omitting `permissions` revokes all
+  `DefaultFwssPermissions`; the default `origin` is `'synapse'` — always pass
+  `origin: 'filagentkey'` explicitly. Prefer `loginSync`/`revokeSync`
+  (receipt + decoded event, `onHash` callback) for dashboard status flips.
+- wagmi gotcha: `useChainId()` returns the app config's chain, not the
+  wallet's — read the wallet's live chain from `useAccount().chainId`
+  (`dashboard/src/hooks/useEnsureChain.ts`).
 
 ## Acceptance = the demo beats
 
