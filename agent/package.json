@@ -5,9 +5,11 @@
   "scripts": {
     "owner:create": "tsx --env-file-if-exists=.env owner.mts",
     "agent": "tsx --env-file-if-exists=.env agent.mts",
+    "agent:plain": "tsx --env-file-if-exists=.env agent.mts --plain",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.3",
     "@filoz/synapse-core": "^0.7.0",
     "@filoz/synapse-sdk": "^1.1.0",
     "viem": "^2.21.0"

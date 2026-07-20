@@ -142,10 +142,12 @@ PieceCID) · 1 dashboard read layer · 2 dashboard writes (create/reveal/revoke)
 loop, `--plain` flag for bare loop) · 5 README + 90s demo script (⛔ human
 checkpoint).
 
-**Status: stages 0–2 complete and human-verified; stage 3 implemented and
-built, visual check pending.** All five demo beats have run live on
-Calibration: dashboard create (one `loginAndFund` tx) → reveal-once → scoped
-agent (AddPieces ✓ / CreateDataSet ✗) uploads with PieceCIDs → Revoke click →
+**Status: stages 0–3 complete; stage 4 implemented (Claude tool-use loop,
+`--plain` fallback) with the live Claude run still unverified; stage 5
+README + demo script drafted, ⛔ human checkpoint (rehearse + record)
+pending.** All five demo beats have run live on Calibration with the plain
+agent: dashboard create (one `loginAndFund` tx) → reveal-once → scoped agent
+(AddPieces ✓ / CreateDataSet ✗) uploads with PieceCIDs → Revoke click →
 agent locked out mid-upload within the poll window. Natural-expiry lockout
 also proven. See `specs/stage-0.md` for API deviations discovered from
 source.
