@@ -7,6 +7,7 @@ import { useEnsureChain } from '../hooks/useEnsureChain'
 import { useNow } from '../hooks/useNow'
 import { keyStatus, type KeyStatus, type SessionKeyInfo } from '../lib/registry'
 import { revokeAgentKey } from '../lib/write'
+import { GasGauge } from './GasGauge'
 
 const statusStyles: Record<KeyStatus, { label: string; className: string }> = {
   active: { label: 'active', className: 'bg-emerald-500/15 text-emerald-400' },
@@ -82,6 +83,11 @@ export function KeyCard({ info }: { info: SessionKeyInfo }) {
           origin <span className="text-zinc-300">{info.origin}</span>
         </div>
       )}
+
+      <GasGauge
+        address={info.signer}
+        canTopUp={status === 'active' || status === 'expiring'}
+      />
 
       <ul className="flex flex-col gap-1.5">
         {info.grantedPermissions.map((permission) => {
