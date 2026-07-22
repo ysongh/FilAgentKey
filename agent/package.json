@@ -6,6 +6,7 @@
     "owner:create": "tsx --env-file-if-exists=.env owner.mts",
     "agent": "tsx --env-file-if-exists=.env agent.mts",
     "agent:plain": "tsx --env-file-if-exists=.env agent.mts --plain",
+    "guard:flag-off": "node --import tsx --test lockout.test.mts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

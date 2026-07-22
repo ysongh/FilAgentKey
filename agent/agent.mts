@@ -8,6 +8,8 @@
  * `synapse.storage.upload`. Requires ANTHROPIC_API_KEY.
  *
  * `--plain`: the Stage 0 bare upload loop (no LLM, no API key needed).
+ * `--sweep`: on revocation/expiry, return remaining session-key gas to the
+ * owner before exiting (off by default).
  */
 import process from 'node:process'
 import Anthropic from '@anthropic-ai/sdk'
@@ -20,8 +22,10 @@ import {
 } from '@filoz/synapse-core/session-key'
 import { Synapse } from '@filoz/synapse-sdk'
 import { createClient, http, type Address, type Hex } from 'viem'
+import { createLockoutShutdown } from './lockout.mjs'
 
 const plainMode = process.argv.includes('--plain')
+const sweepMode = process.argv.includes('--sweep')
 
 const SESSION_PRIVATE_KEY = process.env.SESSION_PRIVATE_KEY
 const ROOT_ADDRESS = process.env.ROOT_ADDRESS
@@ -63,18 +67,23 @@ if (!sessionKey.hasPermission(AddPiecesPermission)) {
   process.exit(1)
 }
 
-function shutdown(reason: string): never {
-  console.log(`\n🔒 ${reason} — access lost, shutting down.`)
-  process.exit(1)
-}
+const lockout = createLockoutShutdown({
+  sweep: sweepMode,
+  sweepSessionBalance: async () => {
+    const { sweepSessionBalance } = await import('./sweep.mjs')
+    await sweepSessionBalance(sessionKey)
+  },
+})
 // Live revocation arrives as an AuthorizationsUpdated log → expirationsUpdated
 // event with expiry=0. ('disconnected' only fires when we call unwatch().)
 sessionKey.addEventListener('expirationsUpdated', () => {
   if (!sessionKey.hasPermission(AddPiecesPermission)) {
-    shutdown('SESSION KEY REVOKED ON-CHAIN')
+    void lockout.shutdown('SESSION KEY REVOKED ON-CHAIN')
   }
 })
 await sessionKey.watch()
+const initialShutdown = lockout.pending()
+if (initialShutdown !== undefined) await initialShutdown
 
 // Node + session-key construction (per the SDK's own session-keys test):
 // Synapse.create() only accepts an address-only account over a browser
@@ -97,7 +106,7 @@ let uploadCount = 0
 /** Uploads bytes under the owner's identity; prints the demo beat lines. */
 async function uploadCheckpoint(content: string): Promise<string> {
   if (!sessionKey.hasPermission(AddPiecesPermission)) {
-    shutdown('SESSION KEY EXPIRED')
+    await lockout.shutdown('SESSION KEY EXPIRED')
   }
   uploadCount += 1
   const n = uploadCount
