@@ -53,7 +53,7 @@ function KeyList() {
   if (data.length === 0) {
     return (
       <p className="text-zinc-500 py-12 text-center">
-        No session keys in the last ~24 h. Create one to get started.
+        No recent or cached session keys. Create one to get started.
       </p>
     )
   }

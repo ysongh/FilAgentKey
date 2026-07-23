@@ -25,15 +25,23 @@ export function ActivityFeed() {
 
   const events = data
     .flatMap((key) => key.events)
-    .sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1))
+    .sort((a, b) => {
+      if (a.blockNumber !== b.blockNumber) {
+        return a.blockNumber > b.blockNumber ? -1 : 1
+      }
+      return b.logIndex - a.logIndex
+    })
 
   return (
     <section className="flex flex-col gap-3">
       <h2 className="text-sm font-semibold text-zinc-400">
-        Activity <span className="font-normal text-zinc-600">· last ~24 h, from chain logs</span>
+        Activity{' '}
+        <span className="font-normal text-zinc-600">
+          · saved in this browser, current status from chain
+        </span>
       </h2>
       {events.length === 0 ? (
-        <p className="text-sm text-zinc-600">No activity in the last ~24 h.</p>
+        <p className="text-sm text-zinc-600">No observed activity yet.</p>
       ) : (
         <ul className="flex flex-col divide-y divide-zinc-800/60 rounded-lg border border-zinc-800 bg-zinc-900/40">
           {events.map((event) => {
@@ -43,7 +51,7 @@ export function ActivityFeed() {
               .join(', ')
             return (
               <li
-                key={`${event.txHash}-${event.signer}`}
+                key={`${event.txHash}-${event.logIndex}`}
                 className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-sm"
               >
                 <span

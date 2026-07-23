@@ -22,12 +22,20 @@ export const authorizationsUpdatedEvent = getAbiItem({
 const LOOKBACK_BLOCKS = 2870n
 
 export interface AuthorizationEvent {
+  identity: Address
   signer: Address
   expiry: bigint
   permissions: readonly Hex[]
   origin: string
   blockNumber: bigint
   txHash: Hex
+  blockHash: Hex
+  logIndex: number
+}
+
+export interface AuthorizationEventPage {
+  events: AuthorizationEvent[]
+  fromBlock: bigint
 }
 
 export interface SessionKeyInfo {
@@ -45,7 +53,7 @@ export interface SessionKeyInfo {
 export async function fetchAuthorizationEvents(
   client: Client<Transport, Chain>,
   owner: Address,
-): Promise<AuthorizationEvent[]> {
+): Promise<AuthorizationEventPage> {
   const latest = await getBlockNumber(client)
   const fromBlock = latest > LOOKBACK_BLOCKS ? latest - LOOKBACK_BLOCKS : 0n
   const logs = await getLogs(client, {
@@ -55,34 +63,77 @@ export async function fetchAuthorizationEvents(
     fromBlock,
     toBlock: latest,
   })
-  return logs
+  const events = logs
     .filter((log) => log.args.signer !== undefined)
     .map((log) => ({
+      identity: owner,
       signer: log.args.signer as Address,
       expiry: log.args.expiry ?? 0n,
       permissions: (log.args.permissions ?? []) as readonly Hex[],
       origin: log.args.origin ?? '',
       blockNumber: log.blockNumber,
       txHash: log.transactionHash,
+      blockHash: log.blockHash,
+      logIndex: log.logIndex,
     }))
-    .sort((a, b) => (a.blockNumber > b.blockNumber ? -1 : 1))
+    .sort(compareEventsNewestFirst)
+  return { events, fromBlock }
+}
+
+function compareEventsNewestFirst(
+  a: AuthorizationEvent,
+  b: AuthorizationEvent,
+): number {
+  if (a.blockNumber !== b.blockNumber) {
+    return a.blockNumber > b.blockNumber ? -1 : 1
+  }
+  return b.logIndex - a.logIndex
+}
+
+function eventId(event: AuthorizationEvent): string {
+  return `${event.txHash.toLowerCase()}:${event.logIndex}`
+}
+
+export function mergeAuthorizationEvents(
+  cached: AuthorizationEvent[],
+  recent: AuthorizationEventPage,
+): AuthorizationEvent[] {
+  const merged = new Map<string, AuthorizationEvent>()
+  for (const event of cached) {
+    if (event.blockNumber < recent.fromBlock) {
+      merged.set(eventId(event), event)
+    }
+  }
+  for (const event of recent.events) {
+    merged.set(eventId(event), event)
+  }
+  return [...merged.values()].sort(compareEventsNewestFirst)
 }
 
 export async function fetchSessionKeys(
   client: Client<Transport, Chain>,
   owner: Address,
+  cachedEvents: AuthorizationEvent[] = [],
 ): Promise<SessionKeyInfo[]> {
-  const events = await fetchAuthorizationEvents(client, owner)
+  const recentEvents = await fetchAuthorizationEvents(client, owner)
+  const events = mergeAuthorizationEvents(cachedEvents, recentEvents)
 
-  const bySigner = new Map<Address, AuthorizationEvent[]>()
+  const bySigner = new Map<
+    string,
+    { signer: Address; events: AuthorizationEvent[] }
+  >()
   for (const event of events) {
-    const list = bySigner.get(event.signer) ?? []
-    list.push(event)
-    bySigner.set(event.signer, list)
+    const id = event.signer.toLowerCase()
+    const entry = bySigner.get(id)
+    if (entry === undefined) {
+      bySigner.set(id, { signer: event.signer, events: [event] })
+    } else {
+      entry.events.push(event)
+    }
   }
 
   return Promise.all(
-    [...bySigner.entries()].map(async ([signer, keyEvents]) => {
+    [...bySigner.values()].map(async ({ signer, events: keyEvents }) => {
       const expirations = await getExpirations(client, {
         address: owner,
         sessionKeyAddress: signer,
