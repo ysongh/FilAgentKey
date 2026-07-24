@@ -144,9 +144,15 @@ misbehaves.
 
 ## Known limitations (testnet honesty)
 
-- Calibration RPC caps `eth_getLogs` at ~2880 epochs, so the dashboard lists
-  keys and activity from the last ~24 h. Live status via `getExpirations`
-  is unaffected.
+- Calibration RPC caps `eth_getLogs` at 2880 epochs, so each key's storage
+  audit trail covers roughly the last 24 h. Registry history already observed
+  by this browser may persist in its public local cache; live status via
+  `getExpirations` is unaffected.
+- Plain value transfers emit no contract log, so gas top-ups and `--sweep`
+  returns do not appear in the audit trail.
+- Storage actions submitted through the standard `addPieces` flow are
+  attributed by recovering its EIP-712 signer. Dataset-creation and
+  non-standard submissions remain visible as unattributed dataset actions.
 - Calibration storage providers are flaky: uploads take ~2 min and
   occasionally time out on-chain commits. The agent surfaces failures to
   Claude as retryable tool results.

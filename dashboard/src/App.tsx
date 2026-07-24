@@ -1,8 +1,12 @@
+import { useEffect, useMemo, useRef } from 'react'
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { ActivityFeed } from './components/ActivityFeed'
+import { OtherStorageActions } from './components/AuditTrail'
 import { CreateKey } from './components/CreateKey'
 import { KeyCard } from './components/KeyCard'
 import { useSessionKeys } from './hooks/useSessionKeys'
+import { useStorageAudit } from './hooks/useStorageAudit'
+import { partitionStorageAudit } from './lib/audit'
 
 function ConnectScreen() {
   const { connect, connectors, isPending, error } = useConnect()
@@ -39,6 +43,39 @@ function ConnectScreen() {
 
 function KeyList() {
   const { data, isPending, error } = useSessionKeys()
+  const storageAudit = useStorageAudit()
+  const debuggedTransactions = useRef(new Set<string>())
+  const partitioned = useMemo(
+    () =>
+      partitionStorageAudit(
+        storageAudit.data?.events ?? [],
+        data ?? [],
+      ),
+    [data, storageAudit.data],
+  )
+
+  useEffect(() => {
+    if (data === undefined || storageAudit.data === undefined) return
+    const expectedBySigner = new Map(
+      data.map((key) => [key.signer.toLowerCase(), key.signer]),
+    )
+    for (const event of storageAudit.data.events) {
+      if (event.attribution.kind !== 'signature-recovered') continue
+      const expected = expectedBySigner.get(
+        event.attribution.signer.toLowerCase(),
+      )
+      if (
+        expected === undefined ||
+        debuggedTransactions.current.has(event.txHash)
+      ) {
+        continue
+      }
+      console.debug(
+        `[FilAgentKey audit] signature-verified recovered=${event.attribution.signer} expected=${expected} tx=${event.txHash}`,
+      )
+      debuggedTransactions.current.add(event.txHash)
+    }
+  }, [data, storageAudit.data])
 
   if (isPending) {
     return <p className="text-zinc-500 py-12 text-center">Loading session keys…</p>
@@ -52,17 +89,31 @@ function KeyList() {
   }
   if (data.length === 0) {
     return (
-      <p className="text-zinc-500 py-12 text-center">
-        No recent or cached session keys. Create one to get started.
-      </p>
+      <>
+        <p className="text-zinc-500 py-12 text-center">
+          No recent or cached session keys. Create one to get started.
+        </p>
+        <OtherStorageActions events={partitioned.other} />
+      </>
     )
   }
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {data.map((info) => (
-        <KeyCard key={info.signer} info={info} />
-      ))}
-    </div>
+    <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        {data.map((info) => (
+          <KeyCard
+            key={info.signer}
+            info={info}
+            storageEvents={
+              partitioned.bySigner[info.signer.toLowerCase()] ?? []
+            }
+            storagePending={storageAudit.isPending}
+            storageError={storageAudit.error}
+          />
+        ))}
+      </div>
+      <OtherStorageActions events={partitioned.other} />
+    </>
   )
 }
 

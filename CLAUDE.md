@@ -29,12 +29,14 @@ in the root `package.json`.
 - Deps: `@filoz/synapse-sdk@^1.1.0`, `@filoz/synapse-core@^0.7.0`, `viem`,
   `wagmi` (dashboard only), Vite + React + TS + Tailwind. **No ethers.js
   anywhere.** Ask before adding anything else.
-- Dashboard bundles **only `@filoz/synapse-core`** (session-key, chains, abis
-  modules) + viem/wagmi — never the full `@filoz/synapse-sdk`. Agent uses the
-  full SDK.
+- Dashboard bundles **only `@filoz/synapse-core`** (verified session-key,
+  chains, abis, warm-storage, typed-data, and piece subpaths) + viem/wagmi —
+  never the full `@filoz/synapse-sdk`. Agent uses the full SDK.
 - **No backend, no database.** Chain state is the only source of truth:
   `getExpirations()` for live key status, `AuthorizationsUpdated` event logs
-  for history. Dashboard must build to a fully static site.
+  for registry history, and PDP `PiecesAdded` logs for storage history.
+  Dashboard must build to a fully static site. Browser localStorage may retain
+  only already-observed public registry history; it is never authoritative.
 - Online tutorials/blog posts about the SDK are stale (pre-1.0 breakage).
   **When any doc disagrees with the `.d.ts` files in `node_modules`, the types
   win.** Verify import paths and signatures against installed types before
@@ -111,13 +113,41 @@ More verified surface (confirmed against installed `.d.ts` / source):
   dashboard's post-tx status flips.
 - `Synapse.create` is synchronous; `storage.upload()` returns `UploadResult`
   with `pieceCid` field. Minimum payload 65 bytes.
+- Root dataset discovery: `getClientDataSets(client, { address: root })` from
+  `@filoz/synapse-core/warm-storage` returns both the global `dataSetId` and
+  per-root `clientDataSetId`. PDP events/functions use `dataSetId`; the
+  `AddPieces` EIP-712 message uses `clientDataSetId`. Never interchange them.
+- PDPVerifier address + ABI: use `calibration.contracts.pdp` (`.address` /
+  `.abi`; the chain key is `pdp`, not `pdpVerifier`). Installed declarations
+  expose `PiecesAdded(setId indexed, pieceIds[], pieceCids[])` and
+  `addPieces(setId, listenerAddr, pieceData, extraData)`.
+- AddPieces attribution helpers are public exports from
+  `@filoz/synapse-core/typed-data`: `EIP712Types`, `getStorageDomain`, and
+  `signAddPiecesAbiParameters`. Piece CID parsing is
+  `from()` from `@filoz/synapse-core/piece`.
 
 Activity feed: query `AuthorizationsUpdated` logs with viem `getLogs`,
 filtered by indexed `identity` = connected address. Fields: `identity`,
 `signer`, `expiry`, `permissions[]`, `origin`. `expiry = 0n` across
 permissions ⇒ revoked. **Calibration RPC caps `eth_getLogs` ranges at 2880
 epochs (~24 h)** — the dashboard queries the last ~2870 blocks
-(`dashboard/src/lib/registry.ts`); documented limitation, no workaround.
+(`dashboard/src/lib/registry.ts`). It replaces the current-window portion of
+the browser's public owner/chain-scoped cache and retains older logs already
+observed by that browser. The cache cannot recover never-observed old logs and
+never supplies current status; `getExpirations()` is reread from chain.
+
+Per-key storage audit: query PDP `PiecesAdded` for all of the root's
+`dataSetId`s over the inclusive `[latest - 2879, latest]` range (exactly 2880
+epochs). For a standard `addPieces` transaction, decode `extraData` with
+`signAddPiecesAbiParameters`, rebuild the exact message from `clientDataSetId`,
+nonce, calldata `pieceData`, and positionally zipped metadata, then call
+`recoverTypedDataAddress()` with `getStorageDomain({ chain: calibration })`
+and `EIP712Types`. **Never attribute by `transaction.from` /
+`receipt.from`: the storage provider submits the on-chain transaction.** A
+standard provider submission may also use the zero `listenerAddr`; that field
+is not an attribution signal. Only a recovered address matching a known
+registry signer gets the `signature-verified` key row. Owner, unknown, decode
+failure, and RPC-failure rows stay in the separate read-only dataset section.
 
 Registry also has payable `loginAndFund(signer, expiry, permissions, origin)`
 (authorize + gas-fund in one tx) — prefer it if simulation succeeds; else fall
@@ -140,17 +170,22 @@ Stages: 0 scaffold+spike (⛔ human checkpoint: delegated upload returns
 PieceCID) · 1 dashboard read layer · 2 dashboard writes (create/reveal/revoke)
 · 3 live polish (activity feed, countdowns) · 4 demo agent (Anthropic tool-use
 loop, `--plain` flag for bare loop) · 5 README + 90s demo script (⛔ human
-checkpoint).
+checkpoint) · 6 gas gauge + top-up · 7 opt-in sweep-on-lockout · 8 public
+registry-history cache · 9 signature-attributed per-key audit trail.
 
-**Status: stages 0–3 complete; stage 4 implemented (Claude tool-use loop,
-`--plain` fallback) with the live Claude run still unverified; stage 5
-README + demo script drafted, ⛔ human checkpoint (rehearse + record)
-pending.** All five demo beats have run live on Calibration with the plain
-agent: dashboard create (one `loginAndFund` tx) → reveal-once → scoped agent
-(AddPieces ✓ / CreateDataSet ✗) uploads with PieceCIDs → Revoke click →
-agent locked out mid-upload within the poll window. Natural-expiry lockout
-also proven. See `specs/stage-0.md` for API deviations discovered from
-source.
+**Status: stages 0–3 and 8 complete; stages 4–7 are implemented, with the live
+Claude-mode run, recording rehearsal, and Stage 7 real sweep receipt/gauge
+check still pending. Stage 6 top-up was reported working. Stage 9 shipped the
+full-trail rung and passes typecheck/build, deterministic isolation/recovery
+smoke, and a real public Calibration signature-recovery probe; its fresh-key
+A/B browser run is still pending because the configured root had zero
+`PiecesAdded` logs in the active window.** All five core demo beats have run
+live on Calibration with the plain agent: dashboard create (one
+`loginAndFund` tx) → reveal-once → scoped agent (AddPieces ✓ /
+CreateDataSet ✗) uploads with PieceCIDs → Revoke click → agent locked out
+mid-upload within the poll window. Natural-expiry lockout also proven. See
+`specs/stage-0.md` for API deviations discovered from source and
+`specs/stage-9.md` for the audit attribution proof.
 
 Note: the spike grants CreateDataSet + AddPieces; the first successful run
 creates the root's dataset — done 2026-07-18 for root `0x131c…0Dba`, so demo
@@ -173,6 +208,22 @@ Field notes from the live runs:
   (verified from the funded root via `eth_call`), so the dashboard's create
   flow is one tx; the `login` + 0.3 tFIL transfer fallback stays in
   `dashboard/src/lib/write.ts`.
+- Every key card polls its session-key tFIL balance every 15 s. Gauge
+  thresholds are green ≥ 0.15, yellow ≥ 0.05, red < 0.05 tFIL. Live keys can
+  receive a 0.2 tFIL owner top-up; revoked/expired keys show the gauge without
+  the action. Balance refreshes after the transfer receipt.
+- Agent `--sweep` is opt-in and off by default. On revoke or natural expiry it
+  reads balance, estimates live FEVM transfer gas and EIP-1559 fees, reserves
+  a 1.5x fee buffer, sends the remainder to `ROOT_ADDRESS`, and exits cleanly
+  on success, nothing-to-return, error, or the 90 s receipt timeout. Never
+  hardcode 21,000 gas on FEVM. The flag-off guard preserves the verified demo
+  lockout path.
+- Public registry cache key:
+  `filagentkey:session-keys:<chainId>:<lowercase-owner>`. It may contain owner
+  and session addresses, permissions, origin, creation tx/block, and observed
+  `AuthorizationsUpdated` logs. It must never contain a private key, reveal
+  env block, balance, or authoritative live expiration. Fresh current-window
+  logs replace cached overlap; events dedupe by transaction hash + log index.
 - `revoke()` source facts: omitting `permissions` revokes all
   `DefaultFwssPermissions`; the default `origin` is `'synapse'` — always pass
   `origin: 'filagentkey'` explicitly. Prefer `loginSync`/`revokeSync`
@@ -180,15 +231,28 @@ Field notes from the live runs:
 - wagmi gotcha: `useChainId()` returns the app config's chain, not the
   wallet's — read the wallet's live chain from `useAccount().chainId`
   (`dashboard/src/hooks/useEnsureChain.ts`).
-- Block → wall time needs no `getBlock`: Filecoin epochs are a fixed 30 s and
-  the chain object carries `calibration.genesisTimestamp` (1667326380), so
-  `timestamp = genesisTimestamp + blockNumber * 30` (validated against a
-  known event; `dashboard/src/lib/registry.ts`).
+- Registry block → wall time needs no `getBlock`: Filecoin epochs are a fixed
+  30 s and the chain object carries `calibration.genesisTimestamp`
+  (1667326380), so `timestamp = genesisTimestamp + blockNumber * 30`
+  (validated against a known event; `dashboard/src/lib/registry.ts`). The
+  Stage 9 storage audit reads and caches actual block timestamps as requested,
+  with the epoch formula as its per-row RPC-failure fallback.
 - `calibration.blockExplorers.default` is Blockscout
   (`https://filecoin-testnet.blockscout.com`, `/tx/<hash>` paths); Filfox /
   Beryx / Glif exist as named entries.
 - The activity feed reuses the key-list query's events (React Query dedupes)
   — keep it at exactly one `eth_getLogs` per refresh.
+- The storage audit is a separate owner/chain-scoped React Query so an audit
+  RPC failure cannot blank key cards or interrupt balance/revoke flows.
+  Transaction inputs and block timestamps are bounded in-memory promise
+  caches; rejected entries are evicted, per-row RPC reads retry once, and
+  failures render as unattributed. Plain transfers (top-ups and `--sweep`)
+  emit no relevant log and therefore never appear in the audit trail.
+- Real Stage 9 probe: transaction `0x6027…ad19` recovered
+  `0xe0cD…Fab7`, which had four nonzero registry grants, while
+  `transaction.from` matched the storage provider. A stricter
+  `listenerAddr == fwss` check was tested and rejected: this standard
+  submission used the zero listener while signing the FWSS domain.
 
 ## Acceptance = the demo beats
 

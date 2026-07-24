@@ -5,8 +5,10 @@ import type { Hex } from 'viem'
 import { useWalletClient } from 'wagmi'
 import { useEnsureChain } from '../hooks/useEnsureChain'
 import { useNow } from '../hooks/useNow'
+import type { StorageAuditEvent } from '../lib/audit'
 import { keyStatus, type KeyStatus, type SessionKeyInfo } from '../lib/registry'
 import { revokeAgentKey } from '../lib/write'
+import { AuditTrail } from './AuditTrail'
 import { GasGauge } from './GasGauge'
 
 const statusStyles: Record<KeyStatus, { label: string; className: string }> = {
@@ -30,7 +32,17 @@ function truncate(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`
 }
 
-export function KeyCard({ info }: { info: SessionKeyInfo }) {
+export function KeyCard({
+  info,
+  storageEvents,
+  storagePending,
+  storageError,
+}: {
+  info: SessionKeyInfo
+  storageEvents: readonly StorageAuditEvent[]
+  storagePending: boolean
+  storageError: Error | null
+}) {
   const now = useNow()
   const status = keyStatus(info, now)
   const badge = statusStyles[status]
@@ -116,6 +128,13 @@ export function KeyCard({ info }: { info: SessionKeyInfo }) {
           )
         })}
       </ul>
+
+      <AuditTrail
+        info={info}
+        storageEvents={storageEvents}
+        storagePending={storagePending}
+        storageError={storageError}
+      />
 
       {(status === 'active' || status === 'expiring') && (
         <button
