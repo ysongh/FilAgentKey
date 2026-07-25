@@ -1,0 +1,24 @@
+{
+  "name": "filagentkey-agent-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file-if-exists=.env server.mts",
+    "start": "tsx --env-file-if-exists=.env server.mts",
+    "test": "node --import tsx --test app.test.mts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.3",
+    "@filoz/synapse-core": "^0.7.0",
+    "@filoz/synapse-sdk": "^1.1.0",
+    "express": "^5.1.0",
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^26.1.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
