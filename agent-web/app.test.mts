@@ -185,6 +185,10 @@ test('GET / serves the single inline web-agent page', async (context) => {
   assert.match(html, /window\.setInterval\(tick, 1000\)/)
   assert.match(html, /https:\/\/filecoin-testnet\.blockscout\.com/)
   assert.match(html, /view successful transaction/)
+  assert.match(html, /var canInteract = agentStatus !== null/)
+  assert.match(html, /storeButton\.textContent = "Try upload \(revoked\)"/)
+  assert.match(html, /if \(!file \|\| uploading\) return/)
+  assert.doesNotMatch(html, /if \(!file \|\| uploading \|\| locked\) return/)
   assert.match(
     html,
     /🔒 my key was revoked — I can no longer store anything\./,

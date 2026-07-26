@@ -347,10 +347,13 @@ export const pageHtml = String.raw`<!doctype html>
         }
 
         function syncControls() {
-          var ready = agentStatus !== null && !locked;
-          fileInput.disabled = !ready || uploading;
+          var canInteract = agentStatus !== null;
+          fileInput.disabled = !canInteract || uploading;
           storeButton.disabled =
-            !ready || uploading || !fileInput.files || fileInput.files.length === 0;
+            !canInteract ||
+            uploading ||
+            !fileInput.files ||
+            fileInput.files.length === 0;
         }
 
         function appendLine(type, text) {
@@ -410,11 +413,16 @@ export const pageHtml = String.raw`<!doctype html>
           statusHeader.classList.add("revoked");
           connection.className = "revoked";
           connection.textContent = "revoked";
+          storeButton.textContent = "Try upload (revoked)";
           renderHeader();
           syncControls();
           appendLine(
             "lockout",
             "🔒 my key was revoked — I can no longer store anything."
+          );
+          appendLine(
+            "status",
+            "The controls stay available so you can try again and prove the server rejects this key."
           );
         }
 
@@ -503,7 +511,7 @@ export const pageHtml = String.raw`<!doctype html>
         form.addEventListener("submit", async function (event) {
           event.preventDefault();
           var file = fileInput.files && fileInput.files[0];
-          if (!file || uploading || locked) return;
+          if (!file || uploading) return;
 
           if (!file.type || file.type.indexOf("image/") !== 0) {
             appendLine("error", "Choose an image file.");
@@ -528,7 +536,9 @@ export const pageHtml = String.raw`<!doctype html>
           startElapsed();
           appendLine(
             "status",
-            "Sending " + file.name + " to Claude and the scoped storage agent…"
+            locked
+              ? "Trying " + file.name + " with the revoked key — the server must reject it…"
+              : "Sending " + file.name + " to Claude and the scoped storage agent…"
           );
 
           var failed = false;

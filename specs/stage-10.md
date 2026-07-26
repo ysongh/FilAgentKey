@@ -40,6 +40,9 @@ session key is revoked.
 - Browser-rendered assistant/tool text is inserted only with `textContent`.
   Revocation handling is idempotent and the elapsed timer stays live during
   quiet API/provider waits.
+- After revocation, the picker and button intentionally remain interactive so
+  the presenter can attempt a real upload. `/upload` still checks AddPieces
+  before Claude or Synapse and returns `my key has been revoked`.
 
 ## Descope ladder
 
@@ -62,7 +65,8 @@ session key is revoked.
 - [ ] Manual: a roughly 500 KiB image streams to a real PieceCID, and the
       dashboard attributes its piece event to the displayed valet key.
 - [ ] Manual: dashboard revoke produces the SSE lockout UI within about
-      60 seconds and prevents another upload.
+      60 seconds; the enabled retry control then receives
+      `my key has been revoked` without invoking Claude or Synapse.
 
 The live checks were not fabricated: `agent-web/.env` is intentionally absent,
 and the test requires a newly minted browser-wallet key plus human dashboard
